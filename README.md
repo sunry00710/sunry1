@@ -249,7 +249,11 @@ npm run daemon -- logs       # 查看日志
 
 ## 致谢
 
-本项目基于 [wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code)（MIT License）进行二次开发，感谢原作者的出色工作。
+- 原始项目：[Wechat-ggGitHub/wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) — 微信桥接核心实现
+- 增强版：[UnknownJackMe/wechat-claude-code-enhanced](https://github.com/UnknownJackMe/wechat-claude-code-enhanced) — /resume、/compact、/effort、/advisor、/goal、/loop 等丰富功能
+- Windows 适配：本项目在此基础上增加跨平台 daemon 管理器和路径兼容支持
+
+感谢每一位作者的出色工作。
 
 ## License
 
