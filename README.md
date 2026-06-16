@@ -17,7 +17,7 @@
 Wechat-ggGitHub/wechat-claude-code (原版，MIT)
   └── UnknownJackMe/wechat-claude-code-enhanced (增强版)
         ├── + /resume、/compact、/effort、/advisor、/goal、/loop 等
-        └── 本项目 (Windows 适配) — by 孙睿 (sunry)
+        └── 本项目 (Windows 适配) — by sunry
               └── + 跨平台 daemon 管理器、Windows 路径兼容、开机自启支持
 ```
 
@@ -259,7 +259,7 @@ npm run daemon -- logs       # 查看日志
 
 - 原始项目：[Wechat-ggGitHub/wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) — 微信桥接核心实现
 - 增强版：[UnknownJackMe/wechat-claude-code-enhanced](https://github.com/UnknownJackMe/wechat-claude-code-enhanced) — /resume、/compact、/effort、/advisor、/goal、/loop 等丰富功能
-- Windows 适配：[sunry00710/sunry1](https://github.com/sunry00710/sunry1) — 孙睿 (sunry)，跨平台 daemon 管理器与路径兼容
+- Windows 适配：[sunry00710/sunry1](https://github.com/sunry00710/sunry1) — sunry，跨平台 daemon 管理器与路径兼容
 
 感谢每一位作者的出色工作。
 
