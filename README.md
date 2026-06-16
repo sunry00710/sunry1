@@ -33,6 +33,14 @@ npm run daemon -- status     # 状态
 npm run daemon -- logs       # 日志
 ```
 
+### 更新代码
+
+```bash
+git pull && npm install && npm run daemon -- restart
+```
+
+> 每次 pull 后必须 restart，否则 daemon 缓存的是旧代码。
+
 ## 命令列表
 
 ### 会话管理
