@@ -1,144 +1,77 @@
-# WeChat Claude Code Bridge
+# WeChat Claude Code Bridge — Windows Edition
 
-<p align="center">
-  <strong>Chat with Claude Code in WeChat, just like texting a friend</strong>
-</p>
+> Chat with Claude Code in WeChat. Now runs on Windows too.
 
-<p align="center">
-  <a href="https://github.com/Wechat-ggGitHub/wechat-claude-code/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="https://skills.sh/Wechat-ggGitHub/wechat-claude-code"><img src="https://img.shields.io/badge/skills.sh-view_page-blue?style=flat-square" alt="skills.sh"></a>
-  <a href="README.md"><img src="https://img.shields.io/badge/Lang-中文-lightgrey?style=flat-square" alt="中文"></a>
-</p>
+## What's This
 
-Scan a QR code to bind your WeChat, and a new "friend" appears in your contacts. Send it a message — it gets forwarded to Claude Code running on your computer, and the reply streams back to WeChat in real time. Supports text, images, voice, and files.
+A Windows-adapted fork of [wechat-claude-code-enhanced](https://github.com/UnknownJackMe/wechat-claude-code-enhanced), which itself builds on [Wechat-ggGitHub/wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) (MIT).
 
----
+All enhanced features preserved, plus Windows support.
 
-## Highlights
+## Windows Adaptations
 
-| | |
-|---|---|
-| **Scan and go** | No account signup, no server deployment. Scan a QR code and you're done in a minute. All data stays on your machine. |
-| **Clean messages** | Only key info gets pushed — progress, results, key decisions. Tool calls and intermediate noise are filtered out automatically. |
-| **"Typing..." indicator** | WeChat shows a typing indicator while Claude is working, so you always know it's on it. |
-| **Consistent experience** | Mobile and desktop Claude Code behave identically — same orchestration, same output. Not two disconnected AIs. |
-| **Two-way files** | Send images, Word docs, PDFs for Claude to analyze. Files Claude generates get pushed directly to WeChat — no need to go back to your computer. |
-| **Timeout reassurance** | Task taking longer than 5 minutes? You'll get an automatic message letting you know it's still working. |
-
----
+| Change | What it does |
+|--------|-------------|
+| Cross-platform daemon | TypeScript rewrite of `scripts/daemon.sh` — detached child process + PID files on Windows |
+| Path fixes | Handles `/Users/` regex, missing `HOME`, and other Unix-isms |
+| Claude CLI compat | `spawn` with `shell: true` + `windowsHide` on Windows |
+| Auto-start | Windows Task Scheduler via `schtasks` |
 
 ## Install
 
-**Option 1: skills CLI (recommended)**
-
 ```bash
-npx skills add Wechat-ggGitHub/wechat-claude-code
-```
-
-The first time you trigger the skill, it will automatically clone the source and install dependencies.
-
-**Option 2: Manual clone**
-
-```bash
-git clone https://github.com/Wechat-ggGitHub/wechat-claude-code.git ~/.claude/skills/wechat-claude-code
+git clone https://github.com/sunry00710/sunry1.git ~/.claude/skills/wechat-claude-code
 cd ~/.claude/skills/wechat-claude-code && npm install
 ```
 
-## Quick Start
-
-### 1. Bind WeChat
+First-time setup:
 
 ```bash
-cd ~/.claude/skills/wechat-claude-code
-npm run setup
+npm run setup                # Scan QR to bind WeChat
+npm run daemon -- start      # Start daemon
+npm run daemon -- status     # Check status
+npm run daemon -- logs       # View logs
 ```
 
-A QR code will pop up — scan it with WeChat.
+## Commands
 
-### 2. Start the service
-
-```bash
-npm run daemon -- start
-```
-
-On macOS, this registers a launchd agent for auto-start on boot and auto-restart on crash.
-
-### 3. Start chatting
-
-Open WeChat and send a message to your new "friend".
-
-### Manage the service
-
-```bash
-npm run daemon -- status   # Check if running
-npm run daemon -- stop     # Stop the service
-npm run daemon -- restart  # Restart (after code updates)
-npm run daemon -- logs     # View recent logs
-```
-
----
-
-## WeChat Commands
-
-Send these directly in the WeChat chat:
-
-| Command | Description |
+### Sessions
+| Command | What it does |
 |---------|-------------|
-| `/help` | Show available commands |
-| `/clear` | Clear current session, start fresh |
+| `/resume` | List or restore past sessions |
+| `/compact` | Squash context, same session ID (~96% token reduction) |
+| `/clear` | Fresh session |
+| `/reset` | Full reset |
 | `/stop` | Stop current task |
-| `/model <name>` | Switch Claude model |
-| `/prompt <text>` | Set a system prompt (e.g. "reply in Chinese") |
-| `/cwd <path>` | Switch working directory |
-| `/skills` | List installed Skills |
-| `/status` | View current session state |
-| `/history [n]` | View recent chat history |
-| `/compact` | Compact context, start a new CLI session |
-| `/reset` | Full reset including working directory |
-| `/undo [n]` | Remove last N messages from history |
-| `/<skill> [args]` | Trigger any installed Skill |
 
----
+### Model & Reasoning
+| Command | What it does |
+|---------|-------------|
+| `/model <alias>` | Switch model |
+| `/model-config` | Manage model aliases |
+| `/effort [level]` | Reasoning depth: low / medium / high / xhigh / max |
+| `/advisor [model]` | Advisor model: opus / sonnet / fable / off |
 
-## How It Works
+### Tasks
+| Command | What it does |
+|---------|-------------|
+| `/goal <condition>` | Auto-loop until condition met |
+| `/loop <interval> <prompt>` | Scheduled task, e.g. `/loop 5m check CI` |
 
-```
-WeChat (phone) ←→ ilink Bot API ←→ Node.js daemon ←→ Claude Code CLI (local)
-```
+### File Transfer
+| Command | What it does |
+|---------|-------------|
+| `/send-me <path>` | Claude sends files to you |
+| `/send-you` | You send files/images to Claude |
 
-The daemon long-polls WeChat for new messages, forwards them to the local `claude` CLI, and streams replies back to WeChat. Everything runs on your own machine.
-
----
-
-## Roadmap
-
-- **Message queue optimization** — Consecutive messages can produce mixed-up replies. Working on a better queuing strategy. Ideas welcome.
-- **Prevent sleep** — Use macOS `caffeinate` to keep the system awake, so closing the lid doesn't interrupt the service.
-- **Resume desktop session** — Chat on your computer for a while, then continue the same session from WeChat on the go. Same workspace, same context.
-
----
-
-## Prerequisites
-
-- Node.js >= 18
-- macOS or Linux
-- A personal WeChat account
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI installed and authenticated
-
-> **Note:** Claude Code supports third-party API providers (OpenRouter, AWS Bedrock, etc.) — set `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` accordingly.
-
-## Data Directory
-
-All data is stored in `~/.wechat-claude-code/`:
-
-```
-~/.wechat-claude-code/
-├── accounts/       # WeChat account credentials
-├── config.json     # Global config
-├── sessions/       # Session data
-└── logs/           # Rotating logs (daily, 30-day retention)
-```
+### Misc
+| Command | What it does |
+|---------|-------------|
+| `/status` | Session status |
+| `/cwd [path]` | Working directory |
+| `/prompt [text]` | System prompt |
+| `/help` | Full command list |
 
 ## License
 
-[MIT](LICENSE)
+MIT

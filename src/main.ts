@@ -49,7 +49,7 @@ const AUTO_PUSH_EXTENSIONS = new Set([
 function extractFilePathsFromText(text: string, cwd: string): string[] {
   const paths: string[] = [];
   // Match Unix absolute paths (/Users/..., /home/..., etc.) and Windows drive-letter paths (C:\..., D:\...)
-  const regex = /(?:\/(?:Users|home|tmp|var|etc|opt)\/[^\s`'"()\[\]{}|<>]+|[A-Za-z]:[\\\/][^\s`'"()\[\]{}|<>]+)/g;
+  const regex = /(?:\/(?:Users|home|tmp|var|etc|opt)\/[^\s`'"\[\]{}|<>]+|[A-Za-z]:[\\\/][^\s`'"\[\]{}|<>]+)/g;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(text)) !== null) {
     const raw = match[0].replace(/[,。、]+$/, ''); // strip trailing punctuation
@@ -57,7 +57,7 @@ function extractFilePathsFromText(text: string, cwd: string): string[] {
     paths.push(resolved);
   }
   // Also match tilde paths (~/... on Unix, ~\... on Windows)
-  const tildeRegex = /~[\\\/][^\s`'"()\[\]{}|<>]+/g;
+  const tildeRegex = /~[\\\/][^\s`'"\[\]{}|<>]+/g;
   while ((match = tildeRegex.exec(text)) !== null) {
     paths.push(match[0].replace(/^~/, homedir()).replace(/[,。、]+$/, ''));
   }
@@ -862,17 +862,16 @@ async function sendToClaude(
       onText: async (delta: string) => {
         textBuffer += delta;
 
-        // Flush at structural boundaries (only if buffer is substantial) or when approaching size limit
-        const shouldFlush =
-          (endsWithStructuralBoundary(textBuffer) && textBuffer.trim().length >= MIN_BATCH_FLUSH_LEN)
-          || textBuffer.length > SOFT_FLUSH_LIMIT;
-
-        if (shouldFlush) {
+        // Only flush when buffer approaches size limit — avoids
+        // fragmenting the response into many WeChat messages.
+        if (textBuffer.length > SOFT_FLUSH_LIMIT) {
           await flushText();
         }
       },
       onBlockEnd: () => {
-        if (textBuffer.trim().length >= MIN_BATCH_FLUSH_LEN || textBuffer.length > SOFT_FLUSH_LIMIT) {
+        // Flush any remaining content at tool-call boundaries to keep
+        // the user updated during long-running tool operations.
+        if (textBuffer.trim().length >= MIN_BATCH_FLUSH_LEN) {
           flushText();
         }
       },

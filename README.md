@@ -1,259 +1,82 @@
-# WeChat Claude Code Bridge — Enhanced（Windows 适配版）
+# WeChat Claude Code Bridge — Windows 适配版
 
-<p align="center">
-  <strong>在微信中与本地 Claude Code 对话 | 现已支持 Windows</strong>
-</p>
+> 在微信里跟 Claude Code 聊天，现在 Windows 也能跑了。
 
-<p align="center">
-  <a href="https://github.com/Wechat-ggGitHub/wechat-claude-code"><img src="https://img.shields.io/badge/原项目-wechat--claude--code-orange?style=flat-square" alt="wechat-claude-code"></a>
-  <a href="https://github.com/UnknownJackMe/wechat-claude-code-enhanced"><img src="https://img.shields.io/badge/增强版-UnknownJackMe-blue?style=flat-square" alt="Enhanced fork"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="#windows"><img src="https://img.shields.io/badge/Platform-Windows_|_macOS_|_Linux-555?style=flat-square" alt="Platforms"></a>
-</p>
+## 这是什么
 
-## 项目来源
+基于 [wechat-claude-code-enhanced](https://github.com/UnknownJackMe/wechat-claude-code-enhanced) 做的 Windows 适配，原项目又来自 [Wechat-ggGitHub/wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code)（MIT）。
 
-```
-Wechat-ggGitHub/wechat-claude-code (原版，MIT)
-  └── UnknownJackMe/wechat-claude-code-enhanced (增强版)
-        ├── + /resume、/compact、/effort、/advisor、/goal、/loop 等
-        └── 本项目 (Windows 适配) — by sunry
-              └── + 跨平台 daemon 管理器、Windows 路径兼容、开机自启支持
-```
+增强版已有的功能全部保留，我额外加了 Windows 平台支持。
 
-本项目基于 [wechat-claude-code-enhanced](https://github.com/UnknownJackMe/wechat-claude-code-enhanced) 进行 **Windows 适配**，原始项目源自 [Wechat-ggGitHub/wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code)（MIT License）。在保留全部原有功能的基础上，新增了完整的 Windows 平台支持。
+## Windows 适配改动
 
-## <a id="windows"></a>Windows 适配改动
+| 改动 | 做了什么 |
+|------|---------|
+| 跨平台 daemon 管理器 | 用 TS 重写 `scripts/daemon.sh`，Windows 用 detached 子进程 + PID 文件 |
+| 路径兼容 | 修了 `/Users/` 正则只认 Unix 路径、`HOME` 环境变量不存在等问题 |
+| Claude CLI 适配 | Windows 上 spawn 加 `shell: true` + `windowsHide` |
+| 开机自启 | 通过 `schtasks` 注册 Windows 任务计划 |
 
-| 改动 | 说明 |
-|------|------|
-| **跨平台 daemon 管理器** | 用 TypeScript 重写 `scripts/daemon.sh`，Windows 使用 detached 子进程 + PID 文件管理 |
-| **路径兼容** | 修复 `/Users/` 正则只匹配 Unix 路径、`process.env.HOME` 不存在等问题 |
-| **Claude CLI 适配** | Windows 上 `spawn` 增加 `shell: true` + `windowsHide` |
-| **开机自启** | 支持通过 `schtasks` 注册 Windows 任务计划 |
-
-## Windows 安装
+## 安装
 
 ```bash
 git clone https://github.com/sunry00710/sunry1.git ~/.claude/skills/wechat-claude-code
 cd ~/.claude/skills/wechat-claude-code && npm install
 ```
 
-首次扫码绑定及 daemon 管理：
+首次扫码 + daemon 管理：
 
 ```bash
-npm run setup                # 首次扫码绑定
-npm run daemon -- start      # 启动守护进程
-npm run daemon -- status     # 查看运行状态
-npm run daemon -- logs       # 查看日志
+npm run setup                # 扫码绑定
+npm run daemon -- start      # 启动
+npm run daemon -- status     # 状态
+npm run daemon -- logs       # 日志
 ```
 
-> **注意**：使用第三方 API（如 DeepSeek）需设置环境变量 `ANTHROPIC_BASE_URL` 和 `ANTHROPIC_API_KEY`。
-
----
-
-## 新增功能一览
-
-### `/resume` — 历史对话恢复
-
-直接在微信中浏览和恢复历史对话，无需手动查找 session ID。
-
-- `/resume` — 列出当前目录最近 15 条历史对话，显示自定义名称（`/rename` 设置的）或首条用户消息
-- `/resume 2` — 恢复列表中第 2 条对话
-- `/resume <uuid>` — 通过完整 session ID 恢复
-
-显示逻辑与 Claude Code 终端内的 `/resume` 选择器保持一致：优先显示 `/rename` 设置的自定义标题，其次是第一条真实用户消息。同时支持只有单个 session 的目录（原版会报"没有历史对话"）。
-
----
-
-### `/compact` — 原生上下文压缩
-
-原版 `/compact` 只是清除 session ID（等同于 `/clear`）。本增强版调用 `claude -p /compact --resume <sessionId>`，触发 Claude Code 的**原生压缩机制**：
-
-- 对话在原 session 内被总结压缩，**session ID 保持不变**
-- token 用量大幅下降（实测：177k → 7k tokens，减少约 96%）
-- 压缩完成后推送到微信，显示压缩前后 token 数量
-
----
-
-### `/model-config` — 模型别名管理
-
-每次切换模型都要输入完整的 model ID 很麻烦，`/model-config` 让你绑定一个短别名。
-
-```
-/model-config                                          — 列出所有别名
-/model-config sonnet claude-sonnet-4-6-thinking[1m]   — 添加/更新别名
-/model-config del sonnet                               — 删除别名
-/model-config sonnet                                   — 查看单个别名
-```
-
-配置好别名后，直接用 `/model sonnet` 切换即可，无需输入完整 ID。切换时会显示别名展开结果：
-
-```
-✅ 模型已切换为: claude-sonnet-4-6-thinking[1m]
-（别名 "sonnet" → claude-sonnet-4-6-thinking[1m]）
-```
-
-别名数据持久化存储在 `~/.wechat-claude-code/model-aliases.json`，daemon 重启后保留。
-
----
-
-### `/effort` — 思考强度调节
-
-调整 Claude 的推理深度，在速度与质量之间按需切换。
-
-- `/effort` — 查看当前级别和可选项
-- `/effort xhigh` — 切换到指定级别
-- 支持：`low` / `medium` / `high` / `xhigh` / `max`
-
----
-
-### `/advisor` — Advisor 模型
-
-为主模型配置一个更强的顾问模型，在关键决策点自动介入（需要 Claude Code v2.1.170+）。
-
-- `/advisor opus` — 启用 Opus 作为顾问
-- `/advisor off` — 关闭
-- 支持：`opus` / `sonnet` / `fable` / 完整 model ID
-
----
-
-### `/goal` — 目标驱动循环
-
-让 Claude 持续工作直到满足指定条件。
-
-- `/goal 所有单元测试通过且 lint 干净` — 设置目标，Claude 自动循环
-- `/goal` — 查看当前目标状态
-- `/goal clear` — 提前终止
-
----
-
-### `/loop` — 定时循环任务
-
-在 wechat bot 进程内实现定时任务，结果自动推送到微信。
-
-- `/loop 5m 检查 CI 是否通过` — 每 5 分钟执行一次
-- `/loop` — 查看所有运行中的 loop
-- `/loop stop <id>` — 停止指定 loop
-
-支持间隔：`30s`（最小提升至 1 分钟）/ `5m` / `2h` / `1d`。Loop 持久化，daemon 重启后自动恢复，7 天自动过期。
-
----
-
-### Workspace 配置文件
-
-针对多项目场景，一键切换目录、模型、思考强度和历史对话。
-
-- `/set-config 0` — 向导式创建配置（分步输入名称、目录、模型、session ID）
-- `/configs` — 列出所有配置
-- `/switch-config 0` — 一键切换
-- `/delete-config 0` — 删除配置
-
----
-
-### `/status` 增强
-
-显示当前是否处于某个 workspace 配置中，所有字段分行清晰展示。
-
----
-
-### 文件互传 — `/send-me` 与 `/send-you`
-
-双向文件传输，支持多图片、多文件混合。
-
-**`/send-me` — Claude 发文件给你**
-
-- `/send-me ~/Documents/report.pdf` — 推送单个文件到微信
-- `/send-me ./chart.png ./data.csv` — 一次推送多个
-- `/send-me ~/Desktop/output/` — 推送整个目录内的可发送文件
-
-此外，Claude 在回复中提到的本地文件路径会被自动识别并推送到微信，无需手动 `/send-me`。
-
-**`/send-you` — 你发文件/图片给 Claude**
-
-- `/send-you` — 进入接收模式
-- 接着发送任意数量的图片和文件（可分多条消息发送）
-- `/send-you-end 这两张图有什么区别？` — 结束接收，把所有文件连同要求一起交给 Claude
-- `/send-you-cancel` — 取消本次接收
-
-关键点：图片以 base64 图像块的形式直接传给 Claude，**Claude 能真正"看到"图片内容**（而非仅收到一个本地路径）；文件则会被自动用 Read 工具读取。底层通过 `claude -p --input-format stream-json` 实现，修复了 `-p` 模式下 `file://` markdown 图片不可见的问题。
-
----
-
-## 安装
-
-```bash
-git clone https://github.com/UnknownJackMe/wechat-claude-code-enhanced.git ~/.claude/skills/wechat-claude-code
-cd ~/.claude/skills/wechat-claude-code && npm install
-```
-
-首次扫码绑定及 daemon 管理，参考原项目文档：
-
-```bash
-npm run setup                # 首次扫码绑定
-npm run daemon -- start      # 启动守护进程（开机自启，崩溃自动重启）
-npm run daemon -- status     # 查看运行状态
-npm run daemon -- logs       # 查看日志
-```
-
-## 完整命令列表
-
-```
-━━━ 会话管理 ━━━
-/help               显示帮助
-/status             查看当前会话状态
-/clear              清除当前会话
-/reset              完全重置
-/stop               停止当前对话
-/compact            压缩上下文（保持 session ID）
-/history [数量]     查看对话记录
-/undo [数量]        撤销最近对话
-
-━━━ 对话恢复 ━━━
-/resume             列出当前目录的历史对话
-/resume <编号>      恢复指定编号的历史对话
-/resume <uuid>      通过 session ID 恢复
-
-━━━ 模型配置 ━━━
-/model [别名/名称]  查看或切换模型
-/model-config       列出所有模型别名
-/model-config <别名> <完整ID>  添加/更新别名
-/model-config del <别名>       删除别名
-/effort [级别]      查看或调整思考强度（low/medium/high/xhigh/max）
-/advisor [模型]     查看或设置 Advisor 模型（opus/sonnet/fable/off）
-
-━━━ 任务控制 ━━━
-/goal [条件]        设置目标，Claude 持续工作直到条件满足
-/goal clear         清除当前目标
-/loop <间隔> <提示> 定时循环执行，例: /loop 5m 检查 CI
-/loop               列出所有运行中的 loop
-/loop stop <id>     停止指定 loop
-/loop stop all      停止所有 loop
-
-━━━ Workspace 配置 ━━━
-/configs                  列出所有 workspace 配置
-/set-config <编号>        向导式创建/编辑配置
-/switch-config <编号>     一键切换（目录+模型+session）
-/delete-config <编号>     删除配置
-
-━━━ 其他 ━━━
-/cwd [路径]         查看或切换工作目录
-/prompt [内容]      查看或设置系统提示词
-/send-me <路径>     发送本地文件给你（支持多路径、目录）
-/send-you           开始接收你发来的文件/图片
-/send-you-end [要求] 结束接收，将文件+图片连同要求发给 Claude
-/send-you-cancel    取消文件接收
-/skills [full]      列出已安装的 skill
-/version            查看版本信息
-```
-
-## 致谢
-
-- 原始项目：[Wechat-ggGitHub/wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) — 微信桥接核心实现
-- 增强版：[UnknownJackMe/wechat-claude-code-enhanced](https://github.com/UnknownJackMe/wechat-claude-code-enhanced) — /resume、/compact、/effort、/advisor、/goal、/loop 等丰富功能
-- Windows 适配：[sunry00710/sunry1](https://github.com/sunry00710/sunry1) — sunry，跨平台 daemon 管理器与路径兼容
-
-感谢每一位作者的出色工作。
+## 命令列表
+
+### 会话管理
+| 命令 | 说明 |
+|------|------|
+| `/resume` | 列出历史对话，`/resume 2` 恢复第 2 条 |
+| `/compact` | 压缩上下文（session ID 不变，实测 177k → 7k tokens） |
+| `/clear` | 清除当前会话 |
+| `/reset` | 完全重置 |
+| `/stop` | 停止当前任务 |
+| `/history [n]` | 查看对话记录 |
+| `/undo [n]` | 撤销最近对话 |
+
+### 模型 & 推理
+| 命令 | 说明 |
+|------|------|
+| `/model <别名>` | 切换模型 |
+| `/model-config` | 管理模型别名（`/model-config sonnet claude-sonnet-4-6-thinking[1m]`） |
+| `/effort [级别]` | 思考强度：low / medium / high / xhigh / max |
+| `/advisor [模型]` | 顾问模型：opus / sonnet / fable / off |
+
+### 任务控制
+| 命令 | 说明 |
+|------|------|
+| `/goal <条件>` | 设个目标，Claude 自动循环直到满足 |
+| `/loop <间隔> <内容>` | 定时任务，如 `/loop 5m 检查 CI` |
+
+### 文件互传
+| 命令 | 说明 |
+|------|------|
+| `/send-me <路径>` | Claude 发文件给你（支持多文件、目录） |
+| `/send-you` | 进入接收模式，你发文件/图片给 Claude |
+| `/send-you-end <要求>` | 结束接收，文件+要求一起交给 Claude |
+
+### 其他
+| 命令 | 说明 |
+|------|------|
+| `/cwd [路径]` | 查看/切换工作目录 |
+| `/status` | 当前会话状态 |
+| `/prompt [内容]` | 查看/设置系统提示词 |
+| `/configs` | Workspace 配置管理 |
+| `/skills` | 已安装的 skills |
+| `/version` | 版本信息 |
+| `/help` | 全部命令 |
 
 ## License
 

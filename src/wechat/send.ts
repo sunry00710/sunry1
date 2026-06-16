@@ -42,9 +42,10 @@ export function createSender(api: WeChatApi, botAccountId: string) {
    */
   function startTyping(toUserId: string, contextToken: string): () => void {
     let cancelled = false;
+    let ticket: string | null = null;
 
     (async () => {
-      const ticket = await getTypingTicket(toUserId, contextToken);
+      ticket = await getTypingTicket(toUserId, contextToken);
       if (!ticket || cancelled) return;
 
       try {
@@ -65,29 +66,25 @@ export function createSender(api: WeChatApi, botAccountId: string) {
         try {
           await api.sendTyping({
             ilink_user_id: toUserId,
-            typing_ticket: ticket,
+            typing_ticket: ticket!,
             status: TypingStatus.TYPING,
           });
         } catch {
           break;
         }
       }
-
-      // Send CANCEL to tell WeChat we're done typing
-      if (!ticket) return;
-      try {
-        await api.sendTyping({
-          ilink_user_id: toUserId,
-          typing_ticket: ticket,
-          status: TypingStatus.CANCEL,
-        });
-      } catch {
-        // ignore
-      }
     })();
 
     return () => {
       cancelled = true;
+      // Immediately send CANCEL — don't wait for keepalive cycle to exit
+      if (ticket) {
+        api.sendTyping({
+          ilink_user_id: toUserId,
+          typing_ticket: ticket,
+          status: TypingStatus.CANCEL,
+        }).catch(() => {});
+      }
     };
   }
 

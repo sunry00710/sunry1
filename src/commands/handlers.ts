@@ -277,11 +277,17 @@ export function handleSend(ctx: CommandContext, args: string): CommandResult {
     };
   }
 
-  // 解析多路径（按空格分隔，支持路径含空格则需引号，但简单情况不需要）
-  const rawPaths = args.match(/"[^"]+"|'[^']+'|\S+/g) || [];
+  // 解析路径：优先检测整个 args 是否为单条绝对路径（含空格），再 fallback 到引号/空格分词
+  const isSingleAbsolute = /^[A-Za-z]:[\\/]/.test(args.trim()) || args.trim().startsWith("/") || args.trim().startsWith("~/");
+  let rawPaths: string[];
+  if (isSingleAbsolute) {
+    rawPaths = [args.trim()];
+  } else {
+    rawPaths = args.match(/"[^"]+"|'[^']+'|\S+/g) || [];
+  }
   const resolved = rawPaths.map(p => {
-    const clean = p.replace(/^["']|["']$/g, '');
-    if (clean.startsWith('/') || /^[A-Za-z]:[\\/]/.test(clean)) return clean;
+    const clean = p.replace(/^["']|["']$/g, "");
+    if (clean.startsWith("/") || /^[A-Za-z]:[\\/]/.test(clean)) return clean;
     return resolve(ctx.session.workingDirectory, clean.replace(/^~/, homedir()));
   });
 
