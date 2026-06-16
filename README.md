@@ -247,14 +247,6 @@ npm run daemon -- logs       # 查看日志
 /version            查看版本信息
 ```
 
-## ⚠️ 免责声明
-
-本项目依赖**微信 ilink Bot 非官方 API** 实现消息收发，该接口：
-
-- 并非微信官方公开 API，**随时可能被微信封禁或变更**
-- 账号存在被限制/封号的风险，**不建议使用主微信号绑定**
-- 仅供学习研究，请勿用于商业或生产环境
-
 ## 致谢
 
 - 原始项目：[Wechat-ggGitHub/wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) — 微信桥接核心实现
