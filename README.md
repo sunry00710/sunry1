@@ -1,15 +1,54 @@
-# WeChat Claude Code Bridge — Enhanced
+# WeChat Claude Code Bridge — Enhanced（Windows 适配版）
 
 <p align="center">
-  <strong>在微信中与本地 Claude Code 对话，并获得更强大的会话管理能力</strong>
+  <strong>在微信中与本地 Claude Code 对话 | 现已支持 Windows</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Wechat-ggGitHub/wechat-claude-code"><img src="https://img.shields.io/badge/基于-wechat--claude--code-orange?style=flat-square" alt="Based on wechat-claude-code"></a>
+  <a href="https://github.com/Wechat-ggGitHub/wechat-claude-code"><img src="https://img.shields.io/badge/原项目-wechat--claude--code-orange?style=flat-square" alt="wechat-claude-code"></a>
+  <a href="https://github.com/UnknownJackMe/wechat-claude-code-enhanced"><img src="https://img.shields.io/badge/增强版-UnknownJackMe-blue?style=flat-square" alt="Enhanced fork"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
+  <a href="#windows"><img src="https://img.shields.io/badge/Platform-Windows_|_macOS_|_Linux-555?style=flat-square" alt="Platforms"></a>
 </p>
 
-本项目基于 [Wechat-ggGitHub/wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) 的源代码进行增强，在保留原有全部功能的基础上，新增了历史对话恢复、原生上下文压缩、思考强度调节、Advisor 模型、目标驱动循环、定时任务、Workspace 配置文件等功能。
+## 项目来源
+
+```
+Wechat-ggGitHub/wechat-claude-code (原版，MIT)
+  └── UnknownJackMe/wechat-claude-code-enhanced (增强版)
+        ├── + /resume、/compact、/effort、/advisor、/goal、/loop 等
+        └── 本项目 (Windows 适配)
+              └── + 跨平台 daemon 管理器、Windows 路径兼容、开机自启支持
+```
+
+本项目基于 [wechat-claude-code-enhanced](https://github.com/UnknownJackMe/wechat-claude-code-enhanced) 进行 **Windows 适配**，原始项目源自 [Wechat-ggGitHub/wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code)（MIT License）。在保留全部原有功能的基础上，新增了完整的 Windows 平台支持。
+
+## <a id="windows"></a>Windows 适配改动
+
+| 改动 | 说明 |
+|------|------|
+| **跨平台 daemon 管理器** | 用 TypeScript 重写 `scripts/daemon.sh`，Windows 使用 detached 子进程 + PID 文件管理 |
+| **路径兼容** | 修复 `/Users/` 正则只匹配 Unix 路径、`process.env.HOME` 不存在等问题 |
+| **Claude CLI 适配** | Windows 上 `spawn` 增加 `shell: true` + `windowsHide` |
+| **开机自启** | 支持通过 `schtasks` 注册 Windows 任务计划 |
+
+## Windows 安装
+
+```bash
+git clone https://github.com/sunry00710/sunry1.git ~/.claude/skills/wechat-claude-code
+cd ~/.claude/skills/wechat-claude-code && npm install
+```
+
+首次扫码绑定及 daemon 管理：
+
+```bash
+npm run setup                # 首次扫码绑定
+npm run daemon -- start      # 启动守护进程
+npm run daemon -- status     # 查看运行状态
+npm run daemon -- logs       # 查看日志
+```
+
+> **注意**：使用第三方 API（如 DeepSeek）需设置环境变量 `ANTHROPIC_BASE_URL` 和 `ANTHROPIC_API_KEY`。
 
 ---
 
