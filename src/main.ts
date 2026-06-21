@@ -248,6 +248,43 @@ async function runSetup(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Auto-recovery: re-run QR login flow when session expires
+// ---------------------------------------------------------------------------
+
+async function performAutoRecover(): Promise<AccountData> {
+  const QR_PATH = join(DATA_DIR, 'qrcode.png');
+
+  while (true) {
+    const { qrcodeUrl, qrcodeId } = await startQrLogin();
+
+    // Generate QR PNG and open with system viewer
+    const QRCode = await import('qrcode');
+    const pngData = await QRCode.toBuffer(qrcodeUrl, { type: 'png', width: 400, margin: 2 });
+    writeFileSync(QR_PATH, pngData);
+
+    openFile(QR_PATH);
+    console.log('📱 已打开二维码图片，请用微信扫描以恢复连接：');
+    console.log(`   图片路径: ${QR_PATH}\n`);
+
+    console.log('等待扫码...');
+
+    try {
+      const account = await waitForQrScan(qrcodeId);
+      // waitForQrScan already calls saveAccount() internally
+      try { unlinkSync(QR_PATH); } catch { /* ignore */ }
+      console.log('✅ 扫码成功！连接已恢复');
+      return account;
+    } catch (err: any) {
+      if (err.message?.includes('expired')) {
+        console.log('⚠️ 二维码已过期，正在刷新...\n');
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Daemon
 // ---------------------------------------------------------------------------
 
@@ -278,6 +315,9 @@ async function runDaemon(): Promise<void> {
   }
 
   const sender = createSender(api, account.accountId);
+
+  // Mutable state — updated on auto-recovery so closures always read latest values
+  const ctx = { account, sender };
   const sharedCtx = { lastContextToken: '' };
   const activeControllers = new Map<string, AbortController>();
 
@@ -290,7 +330,7 @@ async function runDaemon(): Promise<void> {
     processingQueue = true;
     while (messageQueue.length > 0) {
       const msg = messageQueue.shift()!;
-      await handleMessage(msg, account!, session, sessionStore, sender, config, sharedCtx, activeControllers, messageQueue);
+      await handleMessage(msg, ctx.account!, session, sessionStore, ctx.sender, config, sharedCtx, activeControllers, messageQueue);
     }
     processingQueue = false;
   }
@@ -304,33 +344,19 @@ async function runDaemon(): Promise<void> {
     if (!text.startsWith('/stop') && !text.startsWith('/clear')) return false;
     if (session.state !== 'processing') return false;
 
-    const ctrl = activeControllers.get(account!.accountId);
-    if (ctrl) { ctrl.abort(); activeControllers.delete(account!.accountId); }
+    const ctrl = activeControllers.get(ctx.account!.accountId);
+    if (ctrl) { ctrl.abort(); activeControllers.delete(ctx.account!.accountId); }
     session.state = 'idle';
-    sessionStore.save(account!.accountId, session);
+    sessionStore.save(ctx.account!.accountId, session);
 
     if (text.startsWith('/stop')) {
       messageQueue.length = 0;
-      sender.sendText(msg.from_user_id!, msg.context_token ?? '', '⏹ 已停止当前对话，排队中的消息已清空。').catch(() => {});
+      ctx.sender.sendText(msg.from_user_id!, msg.context_token ?? '', '⏹ 已停止当前对话，排队中的消息已清空。').catch(() => {});
     }
     return true;
   }
 
-  const callbacks: MonitorCallbacks = {
-    onMessage: async (msg: WeixinMessage) => {
-      if (handlePriorityCommand(msg)) return;
-      messageQueue.push(msg);
-      drainQueue();
-    },
-    onSessionExpired: () => {
-      logger.warn('Session expired, will keep retrying...');
-      console.error('⚠️ 微信会话已过期，请重新运行 setup 扫码绑定');
-    },
-  };
-
-  const monitor = createMonitor(api, callbacks);
-
-  // -- Graceful shutdown --
+  // -- Graceful shutdown (registered once) --
 
   const loopTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -344,7 +370,7 @@ async function runDaemon(): Promise<void> {
       if (!current) return;
 
       logger.info('Loop firing', { id: loop.id, prompt: loop.prompt.slice(0, 60) });
-      const loopFromUserId = account!.userId || '';
+      const loopFromUserId = ctx.account!.userId || '';
       const loopContextToken = sharedCtx.lastContextToken;
       if (!loopFromUserId || !loopContextToken) {
         logger.warn('Loop skipped: no user to send to', { id: loop.id });
@@ -354,7 +380,7 @@ async function runDaemon(): Promise<void> {
             `[🔁 定时任务] ${loop.prompt}`,
             undefined, undefined,
             loopFromUserId, loopContextToken,
-            account!, session, sessionStore, sender, config, activeControllers,
+            ctx.account!, session, sessionStore, ctx.sender, config, activeControllers,
           );
         } catch (err) {
           logger.error('Loop execution failed', { id: loop.id, error: err instanceof Error ? err.message : String(err) });
@@ -370,7 +396,7 @@ async function runDaemon(): Promise<void> {
   }
 
   // Restore loops that were active before restart
-  for (const loop of loadLoops().filter(l => l.accountId === account!.accountId)) {
+  for (const loop of loadLoops().filter(l => l.accountId === ctx.account!.accountId)) {
     logger.info('Restoring loop', { id: loop.id, interval: formatInterval(loop.intervalMs) });
     scheduleLoop(loop);
   }
@@ -378,20 +404,68 @@ async function runDaemon(): Promise<void> {
   // Expose scheduleLoop globally so handleMessage can use it
   _scheduleLoop = scheduleLoop;
 
+  let currentMonitor: ReturnType<typeof createMonitor> | null = null;
+
   function shutdown(): void {
     logger.info('Shutting down...');
     for (const timer of loopTimers.values()) clearTimeout(timer);
-    monitor.stop();
+    if (currentMonitor) currentMonitor.stop();
     process.exit(0);
   }
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  logger.info('Daemon started', { accountId: account.accountId });
-  console.log(`已启动 (账号: ${account.accountId})`);
+  // =========================================================================
+  // Main loop with auto-recovery
+  // =========================================================================
 
-  await monitor.run();
+  while (true) {
+    let triggerRecover = false;
+
+    // Recreate API and sender with current account (may have changed after recovery)
+    const api = new WeChatApi(ctx.account.botToken, ctx.account.baseUrl);
+    ctx.sender = createSender(api, ctx.account.accountId);
+
+    const callbacks: MonitorCallbacks = {
+      onMessage: async (msg: WeixinMessage) => {
+        if (handlePriorityCommand(msg)) return;
+        messageQueue.push(msg);
+        drainQueue();
+      },
+      onSessionExpired: () => {
+        logger.warn('Session expired, triggering auto-recovery');
+        triggerRecover = true;
+      },
+      onAutoRecover: () => {
+        logger.warn('Network failure threshold reached, triggering auto-recovery');
+        triggerRecover = true;
+      },
+    };
+
+    currentMonitor = createMonitor(api, callbacks);
+
+    logger.info('Daemon started', { accountId: ctx.account.accountId });
+    console.log(`已启动 (账号: ${ctx.account.accountId})`);
+
+    await currentMonitor.run();
+
+    if (!triggerRecover) break; // Normal shutdown (SIGINT/SIGTERM)
+
+    // -- Auto-recovery --
+    console.log('🔄 检测到会话过期，正在自动恢复...\n');
+
+    try {
+      const newAccount = await performAutoRecover();
+      ctx.account = newAccount;
+      console.log('✅ 自动恢复完成，继续服务\n');
+    } catch (err: any) {
+      logger.error('Auto-recovery failed', { error: err instanceof Error ? err.message : String(err) });
+      console.error(`❌ 自动恢复失败: ${err instanceof Error ? err.message : String(err)}`);
+      console.error('请手动运行 npm run setup 重新绑定');
+      break;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

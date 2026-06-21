@@ -4,7 +4,6 @@ import { logger } from '../logger.js';
 import type { WeixinMessage } from './types.js';
 
 const SESSION_EXPIRED_ERRCODE = -14;
-const SESSION_EXPIRED_PAUSE_MS = 60 * 60 * 1000; // 1 hour
 const BACKOFF_THRESHOLD = 3;
 const BACKOFF_LONG_MS = 30_000;
 const BACKOFF_SHORT_MS = 3_000;
@@ -12,7 +11,11 @@ const BACKOFF_SHORT_MS = 3_000;
 export interface MonitorCallbacks {
   onMessage: (msg: WeixinMessage) => Promise<void>;
   onSessionExpired: () => void;
+  /** Called when auto-recovery should be triggered (session expired or persistent network failures). */
+  onAutoRecover?: () => void;
 }
+
+const MAX_CONSECUTIVE_FAILURES = 10;
 
 export function createMonitor(api: WeChatApi, callbacks: MonitorCallbacks) {
   const controller = new AbortController();
@@ -31,9 +34,14 @@ export function createMonitor(api: WeChatApi, callbacks: MonitorCallbacks) {
         const resp = await api.getUpdates(buf || undefined);
 
         if (resp.ret === SESSION_EXPIRED_ERRCODE) {
-          logger.warn('Session expired, pausing for 1 hour');
+          logger.warn('Session expired, triggering auto-recovery');
           callbacks.onSessionExpired();
-          await sleep(SESSION_EXPIRED_PAUSE_MS, controller.signal);
+          if (callbacks.onAutoRecover) {
+            callbacks.onAutoRecover();
+            break;
+          }
+          // Fallback: old behavior if no auto-recover handler
+          await sleep(60 * 60 * 1000, controller.signal);
           consecutiveFailures = 0;
           continue;
         }
@@ -87,6 +95,14 @@ export function createMonitor(api: WeChatApi, callbacks: MonitorCallbacks) {
         consecutiveFailures++;
         const errorMsg = err instanceof Error ? err.message : String(err);
         logger.error('Monitor error', { error: errorMsg, consecutiveFailures });
+
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          logger.error('Max consecutive failures reached, triggering auto-recovery', { consecutiveFailures });
+          if (callbacks.onAutoRecover) {
+            callbacks.onAutoRecover();
+            break;
+          }
+        }
 
         const backoff = consecutiveFailures >= BACKOFF_THRESHOLD ? BACKOFF_LONG_MS : BACKOFF_SHORT_MS;
         logger.info(`Backing off ${backoff}ms`, { consecutiveFailures });
